@@ -1,0 +1,13 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy package files if they exist (they don't yet, but for future)
+# COPY package*.json ./
+# RUN npm install
+
+# Expose Vite dev server port
+EXPOSE 5173
+
+# Default command keeps the container running
+CMD ["sh", "-c", "if [ -f package.json ]; then npm install && npm run dev -- --host; else echo 'package.json not found. Init project first.' && tail -f /dev/null; fi"]

@@ -1,0 +1,15 @@
+{
+  "id": "sample_map",
+  "name": "Sample Test Field",
+  "spawners": [
+    { "id": "center_spawner", "position": {"x": 0, "y": 0, "z": 0}, "interval": 90, "lastSpawn": 0 }
+  ],
+  "walls": [
+    { "id": "wall_top", "position": {"x": 0, "y": 1, "z": -10}, "size": {"x": 20, "y": 2, "z": 1} },
+    { "id": "wall_bottom", "position": {"x": 0, "y": 1, "z": 10}, "size": {"x": 20, "y": 2, "z": 1} },
+    { "id": "wall_left", "position": {"x": -10, "y": 1, "z": 0}, "size": {"x": 1, "y": 2, "z": 20} },
+    { "id": "wall_right", "position": {"x": 10, "y": 1, "z": 0}, "size": {"x": 1, "y": 2, "z": 20} },
+    { "id": "wall_cross_h", "position": {"x": 4, "y": 1, "z": 4}, "size": {"x": 6, "y": 2, "z": 1} },
+    { "id": "wall_cross_v", "position": {"x": 4, "y": 1, "z": 4}, "size": {"x": 1, "y": 2, "z": 6} }
+  ]
+}

@@ -1,0 +1,8 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+EXPOSE 3000
+
+# Default command keeps the container running
+CMD ["sh", "-c", "if [ -f package.json ]; then npm install && npm run dev; else echo 'package.json not found. Init project first.' && tail -f /dev/null; fi"]

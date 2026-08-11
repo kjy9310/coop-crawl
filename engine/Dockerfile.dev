@@ -1,0 +1,15 @@
+FROM golang:1.22-alpine
+
+# Install tinygo for wasm build and other utils if needed
+RUN apk add --no-cache git make
+
+# Download tinygo
+RUN wget https://github.com/tinygo-org/tinygo/releases/download/v0.31.2/tinygo0.31.2.linux-amd64.tar.gz && \
+    tar -zxf tinygo0.31.2.linux-amd64.tar.gz -C /usr/local && \
+    rm tinygo0.31.2.linux-amd64.tar.gz
+ENV PATH="/usr/local/tinygo/bin:${PATH}"
+
+WORKDIR /app
+
+# Keep container running for dev
+CMD ["tail", "-f", "/dev/null"]

@@ -1,0 +1,17 @@
+{
+  "name": "my-coop-roguelike",
+  "version": "1.0.0",
+  "description": "WebRTC + Wasm + R3F Co-op Roguelike MVP",
+  "scripts": {
+    "dev:server": "npm run dev --prefix server",
+    "dev:client": "npm run dev --prefix client",
+    "test:server": "npm run test --prefix server",
+    "test:client": "npm run test --prefix client",
+    "test:engine": "cd engine && go test ./...",
+    "build:wasm": "docker compose exec -w /app engine ./build.sh && powershell -Command \"Copy-Item -Force engine/build/* client/public/wasm/\"",
+    "tunnel": "docker compose exec client npx localtunnel --port 5173",
+    "tunnel:cf": "docker compose exec client npx cloudflared --url http://localhost:5173"
+  },
+  "author": "",
+  "license": "ISC"
+}
