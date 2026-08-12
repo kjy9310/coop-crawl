@@ -1,8 +1,9 @@
 import React, { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Box, Html, Sphere, Ring } from '@react-three/drei';
+import { Box, Html, Ring } from '@react-three/drei';
 import * as THREE from 'three';
 import { useGameStore } from '../store/gameStore';
+import { LightMesh } from './LightMesh';
 
 function lerpAngle(start: number, end: number, t: number) {
   let diff = end - start;
@@ -25,8 +26,8 @@ const HealingAura = React.memo(({ id }: { id: string }) => {
     domeRef.current.visible = isCasting;
     if (isCasting) {
       const elapsed = worldState.tick - player.lastSkillCastTick!;
-      const progress = elapsed / 25.0; // 0..1 expansion & lift
-      const scale = 0.5 + progress * 3.0; // Expands to 3.5m radius
+      const progress = elapsed / 25.0;
+      const scale = 0.5 + progress * 3.0;
       domeRef.current.scale.set(scale, scale, 1.2);
       domeRef.current.position.y = 0.1 + progress * 0.5;
     }
@@ -36,25 +37,59 @@ const HealingAura = React.memo(({ id }: { id: string }) => {
     ringRef.current.visible = isReceivingHeal;
     if (isReceivingHeal) {
       const elapsed = worldState.tick - player.lastHealTick!;
-      const progress = elapsed / 25.0; // 0..1 lift
-      const scale = 0.8 + progress * 0.3; // Compact 1.0m radius
+      const progress = elapsed / 25.0;
+      const scale = 0.8 + progress * 0.3;
       ringRef.current.scale.set(scale, scale, 1.0);
-      ringRef.current.position.y = 0.1 + progress * 1.2; // Rises up body
+      ringRef.current.position.y = 0.1 + progress * 1.2;
     }
   });
 
   return (
     <>
-      {/* Caster 3.5m Large Sanctuary Dome */}
       <Ring ref={domeRef} args={[0.3, 1.2, 32]} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.1, 0]}>
         <meshStandardMaterial color="#00ff66" emissive="#00ff88" emissiveIntensity={6} transparent opacity={0.85} />
       </Ring>
-
-      {/* Receiver Compact 1.0m Personal Ring */}
       <Ring ref={ringRef} args={[0.2, 0.6, 32]} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.1, 0]}>
         <meshStandardMaterial color="#00ffcc" emissive="#00ffaa" emissiveIntensity={4} transparent opacity={0.9} />
       </Ring>
     </>
+  );
+});
+
+const LeftHandMesh = React.memo(({ id }: { id: string }) => {
+  const leftItem = useGameStore(s => s.worldState?.players[id]?.equippedLeftHand);
+  if (!leftItem) return null;
+
+  const isLight = leftItem.type === 'torch' || leftItem.type === 'lantern' || (leftItem.lightRadius && leftItem.lightRadius > 0);
+
+  return (
+    <group position={[-0.45, 0.4, 0.2]}>
+      {isLight && (
+        <>
+          <LightMesh type={leftItem.type} color={leftItem.lightColor || '#ffaa44'} />
+          <pointLight 
+            color={leftItem.lightColor || '#ffaa44'} 
+            intensity={leftItem.type === 'lantern' ? 9.0 : 7.0} 
+            distance={leftItem.type === 'lantern' ? 26.0 : 18.0} 
+            decay={1}
+            position={[0, 0.5, 0]} 
+          />
+        </>
+      )}
+    </group>
+  );
+});
+
+const BasePlayerLight = React.memo(({ id }: { id: string }) => {
+  const leftItem = useGameStore(s => s.worldState?.players[id]?.equippedLeftHand);
+  const rightItem = useGameStore(s => s.worldState?.players[id]?.equippedRightHand || s.worldState?.players[id]?.equippedWeapon);
+  const hasLightItem = (leftItem && (leftItem.type === 'torch' || leftItem.type === 'lantern')) ||
+                        (rightItem && (rightItem.type === 'torch' || rightItem.type === 'lantern'));
+
+  if (hasLightItem) return null;
+
+  return (
+    <pointLight color="#fffaee" intensity={1.2} distance={3.5} decay={1.5} position={[0, 1.2, 0]} />
   );
 });
 
@@ -67,14 +102,14 @@ const WeaponMesh = React.memo(({ id }: { id: string }) => {
     const worldState = useGameStore.getState().worldState;
     const player = worldState?.players[id];
     if (!groupRef.current) return;
-    
-    if (!player || !player.equippedWeapon) {
+
+    const weapon = player?.equippedRightHand || player?.equippedWeapon;
+    if (!player || !weapon) {
       groupRef.current.visible = false;
       return;
     }
 
     groupRef.current.visible = true;
-    const weapon = player.equippedWeapon;
     const isSwinging = !!(worldState && player.lastSwingTick && (worldState.tick - player.lastSwingTick < 10));
 
     if (weapon.type === 'melee') {
@@ -91,8 +126,11 @@ const WeaponMesh = React.memo(({ id }: { id: string }) => {
         }
       }
       if (orbRef.current) orbRef.current.visible = false;
+    } else if (weapon.type === 'torch' || weapon.type === 'lantern') {
+      if (meshRef.current) meshRef.current.visible = false;
+      if (orbRef.current) orbRef.current.visible = false;
     } else {
-      // Heal Staff Mesh (Vertical staff held beside player + glowing top orb)
+      // Heal Staff Mesh
       if (meshRef.current) {
         meshRef.current.scale.set(0.12, 1.8, 0.12);
         meshRef.current.position.set(0.4, 0.9, 0.2);
@@ -112,27 +150,24 @@ const WeaponMesh = React.memo(({ id }: { id: string }) => {
 
   return (
     <group ref={groupRef}>
-      <Box ref={meshRef} args={[1, 1, 1]}>
-        <meshStandardMaterial color="#ffaa00" emissive="#ffaa00" emissiveIntensity={1} />
+      <Box ref={meshRef} args={[1, 1, 1]} position={[0, 0.5, 1.5]}>
+        <meshStandardMaterial color="#ffaa00" emissive="#ff5500" emissiveIntensity={0.8} />
       </Box>
-      <Sphere ref={orbRef} args={[0.22, 12, 12]}>
-        <meshStandardMaterial color="#00ffaa" emissive="#00ffaa" emissiveIntensity={3} />
-      </Sphere>
+      <Box ref={orbRef} args={[0.25, 0.25, 0.25]} position={[0.4, 1.8, 0.2]}>
+        <meshStandardMaterial color="#00ffcc" emissive="#00ffaa" emissiveIntensity={3} />
+      </Box>
     </group>
   );
 });
 
-export const Player = React.memo(({ id, isLocal }: { id: string, isLocal: boolean }) => {
+export const Player = React.memo(({ id, isLocal }: { id: string; isLocal: boolean }) => {
   const groupRef = useRef<THREE.Group>(null);
   const hpRef = useRef<HTMLDivElement>(null);
 
   useFrame((rootState, delta) => {
-    const worldState = useGameStore.getState().worldState;
-    const state = worldState?.players[id];
-    if (!state || !groupRef.current || !worldState) return;
+    const state = useGameStore.getState().worldState?.players[id];
+    if (!state || !groupRef.current) return;
 
-    // Framerate-independent lerp (smoothly catches up to server state)
-    // TODO(Network): To perfectly hide the remaining network jitter, implement a 100ms Interpolation Buffer here later.
     const lerpFactor = 1 - Math.exp(-15 * delta);
     const serverPos = new THREE.Vector3(state.position.x, state.position.y, state.position.z);
 
@@ -141,20 +176,19 @@ export const Player = React.memo(({ id, isLocal }: { id: string, isLocal: boolea
     } else {
       groupRef.current.position.lerp(serverPos, lerpFactor);
     }
-    
-    // Interpolate rotation
+
     if (state.heading !== undefined) {
       groupRef.current.rotation.y = lerpAngle(groupRef.current.rotation.y, state.heading, lerpFactor);
     }
-    
-    // Camera Follow Logic (Smoothly track VISUAL position, not server position)
+    const targetPitch = state.hp <= 0 ? -Math.PI / 2.2 : 0;
+    groupRef.current.rotation.x = THREE.MathUtils.lerp(groupRef.current.rotation.x, targetPitch, lerpFactor);
+
     if (isLocal) {
       const targetCamPos = new THREE.Vector3(groupRef.current.position.x, groupRef.current.position.y + 15, groupRef.current.position.z + 10);
       rootState.camera.position.lerp(targetCamPos, 1 - Math.exp(-10 * delta));
       rootState.camera.lookAt(groupRef.current.position);
     }
 
-    // Update HP Bar DOM without React re-render
     if (!isLocal && hpRef.current) {
       const hpPercent = Math.max(0, state.hp / state.maxHp);
       hpRef.current.style.width = `${hpPercent * 100}%`;
@@ -162,22 +196,21 @@ export const Player = React.memo(({ id, isLocal }: { id: string, isLocal: boolea
     }
   });
 
-  // Initial render at 0,0,0 (useFrame will instantly snap it)
   return (
     <group ref={groupRef} position={[0, 0, 0]}>
       <Box args={[1, 1, 1]} position={[0, 0.5, 0]}>
-        <meshStandardMaterial color={isLocal ? "#00ffcc" : "#ff00cc"} />
+        <meshStandardMaterial color={isLocal ? '#00ffcc' : '#ff00cc'} />
       </Box>
-      
-      {/* Face / Nose indicating direction (+Z is forward) */}
+
       <Box args={[0.2, 0.2, 0.2]} position={[0, 0.8, 0.5]}>
         <meshStandardMaterial color="#000000" />
       </Box>
 
-      {/* Render Equipped Weapon Mesh & Healing Aura */}
       <WeaponMesh id={id} />
+      <LeftHandMesh id={id} />
+      <BasePlayerLight id={id} />
       <HealingAura id={id} />
-      
+
       {/* Name Tag & HP Bar Overhead */}
       <Html position={[0, 1.4, 0]} center style={{ pointerEvents: 'none', userSelect: 'none' }}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '60px' }}>

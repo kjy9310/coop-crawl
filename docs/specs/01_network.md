@@ -1,18 +1,27 @@
 # 01. Network & Event Specification
 
-## Overview
-A WebRTC P2P-based cooperative roguelike game. One player acts as the authoritative Host (running the Wasm game engine), and others connect as Clients.
+## WebRTC Signaling Architecture
+- **Signaling Server**: Dedicated Node.js + Express + Socket.IO server running on port 3000 (`server/src/server.js`).
+- **Signaling Events**:
+  - `join-room`: Registers peer in target `roomId`.
+  - `peer-connected`: Notifies existing room members when a new peer joins.
+  - `webrtc-offer`: Relays RTCSessionDescription (offer) to target peer.
+  - `webrtc-answer`: Relays RTCSessionDescription (answer) to target peer.
+  - `ice-candidate`: Relays RTCIceCandidate to target peer.
+- **P2P DataChannel Connection (`PeerManager`)**:
+  - Uses native `RTCPeerConnection` with `RTCDataChannel` (label: `game-data`).
+  - No external cloud dependencies (removes PeerJS dependency in favor of project signaling server).
 
-## Protocol
+## Game Event & State Protocol
 - **Events (Client -> Host)**
-  - `join`: Sent upon connecting. Contains unique `playerId`.
+  - `join`: Sent upon connecting. Contains unique `playerId` and optional `name`.
   - `move`: Contains target position or directional vector (`dir`).
   - `aim`: Contains `heading`, `angularSpeed`, and continuous `swingArc`.
   - `pickup`: Contains `itemId` of ground item to pick up.
   - `drop`: Triggers dropping equipped weapon onto ground.
   - `attack`: Triggers ranged attack firing projectile in `heading` direction.
 - **State (Host -> Client)**
-  - Broadcasts `WorldState` containing players, enemies, items, projectiles, spawners, and walls at 30Hz.
+  - Broadcasts `WorldState` containing players, enemies, items, projectiles, spawners, and walls at 30Hz over WebRTC DataChannel.
 
 ## Engine Simulation (Determinism)
 The Go engine runs at a fixed Tick Rate (30Hz).

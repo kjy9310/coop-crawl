@@ -11,18 +11,25 @@ export const Projectile = React.memo(({ id }: { id: string }) => {
     const state = useGameStore.getState().worldState?.projectiles[id];
     if (!state || !meshRef.current) return;
 
-    // Projectiles move very fast, so client-side extrapolation is essential for smoothness
-    meshRef.current.position.x += state.velocity.x * delta;
-    meshRef.current.position.z += state.velocity.z * delta;
-
-    // Soft-correct to server position
+    // 100% Core-Authoritative position rendering
     const serverPos = new THREE.Vector3(state.position.x, state.position.y + 0.5, state.position.z);
-    meshRef.current.position.lerp(serverPos, 1 - Math.exp(-15 * delta));
+    meshRef.current.position.lerp(serverPos, 1 - Math.exp(-25 * delta));
   });
+
+  const projState = useGameStore(s => s.worldState?.projectiles[id]);
+  const projType = projState?.type || 'magic';
+
+  const colorMap: Record<string, string> = {
+    heal: '#00ff88',
+    arrow: '#ffcc00',
+    magic: '#00ccff',
+  };
+
+  const glowColor = colorMap[projType] || '#00ccff';
 
   return (
     <Sphere ref={meshRef} args={[0.25, 8, 8]} position={[0, 0.5, 0]}>
-      <meshStandardMaterial color="#00ffaa" emissive="#00ffaa" emissiveIntensity={3} />
+      <meshStandardMaterial color={glowColor} emissive={glowColor} emissiveIntensity={3.5} />
     </Sphere>
   );
 });

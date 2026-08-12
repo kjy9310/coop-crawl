@@ -30,7 +30,10 @@ func wasmGenerateMap(this js.Value, args []js.Value) any {
 	if len(args) < 1 {
 		return "error: expected seed"
 	}
-	seed := int64(args[0].Int())
+	var seed int64
+	if args[0].Type() == js.TypeNumber {
+		seed = int64(args[0].Float())
+	}
 	
 	// Default random map size 100x100, 20 enemies
 	config := game.GenerateMap(seed, 100, 100, 20)

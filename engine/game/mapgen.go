@@ -64,7 +64,10 @@ func GenerateMap(seed int64, width, depth, numEnemies int) MapConfig {
 		}
 	}
 	
-	// Connect rooms with corridors
+	endRoomIndex := len(rooms) - 1
+	endRoom := rooms[endRoomIndex]
+
+	// Connect rooms with corridors (protecting Goal Room from extra corridors)
 	for i := 1; i < len(rooms); i++ {
 		prevX, prevZ := rooms[i-1].Center()
 		currX, currZ := rooms[i].Center()
@@ -75,8 +78,14 @@ func GenerateMap(seed int64, width, depth, numEnemies int) MapConfig {
 			minX, maxX = currX, prevX
 		}
 		for x := minX; x <= maxX; x++ {
-			grid[x][prevZ] = true
-			grid[x][prevZ+1] = true // 2-wide
+			for dz := 0; dz <= 1; dz++ {
+				cz := prevZ + dz
+				// Don't let intermediate corridors (i < endRoomIndex) cut through endRoom
+				if i < endRoomIndex && x >= endRoom.X && x < endRoom.X+endRoom.W && cz >= endRoom.Z && cz < endRoom.Z+endRoom.D {
+					continue
+				}
+				grid[x][cz] = true
+			}
 		}
 		
 		// Vertical corridor
@@ -85,8 +94,14 @@ func GenerateMap(seed int64, width, depth, numEnemies int) MapConfig {
 			minZ, maxZ = currZ, prevZ
 		}
 		for z := minZ; z <= maxZ; z++ {
-			grid[currX][z] = true
-			grid[currX+1][z] = true // 2-wide
+			for dx := 0; dx <= 1; dx++ {
+				cx := currX + dx
+				// Don't let intermediate corridors (i < endRoomIndex) cut through endRoom
+				if i < endRoomIndex && cx >= endRoom.X && cx < endRoom.X+endRoom.W && z >= endRoom.Z && z < endRoom.Z+endRoom.D {
+					continue
+				}
+				grid[cx][z] = true
+			}
 		}
 	}
 	
@@ -131,36 +146,71 @@ func GenerateMap(seed int64, width, depth, numEnemies int) MapConfig {
 	var spawnPoint Vector3
 	var exitPoint Vector3
 	var items []Item
+	var doors []Door
 
 	if len(rooms) > 0 {
 		startRoom := rooms[0]
 		sx, sz := startRoom.Center()
 		spawnPoint = Vector3{X: float64(sx) + 0.5, Y: 0.0, Z: float64(sz) + 0.5}
 		
-		endRoom := rooms[len(rooms)-1]
 		ex, ez := endRoom.Center()
 		exitPoint = Vector3{X: float64(ex) + 0.5, Y: 0.0, Z: float64(ez) + 0.5}
+
+		// Calculate exact dynamic door position & orientation at Goal Room single entrance threshold
+		prevRoom := rooms[len(rooms)-2]
+		prevX, prevZ := prevRoom.Center()
+
+		var doorPos Vector3
+		var doorSize Vector3
+
+		if prevZ < endRoom.Z {
+			// Enters Goal Room from Top/North wall
+			doorPos = Vector3{X: float64(ex) + 0.5, Y: 1.0, Z: float64(endRoom.Z) - 0.5}
+			doorSize = Vector3{X: 2.5, Y: 2.5, Z: 0.6}
+		} else if prevZ >= endRoom.Z+endRoom.D {
+			// Enters Goal Room from Bottom/South wall
+			doorPos = Vector3{X: float64(ex) + 0.5, Y: 1.0, Z: float64(endRoom.Z+endRoom.D) + 0.5}
+			doorSize = Vector3{X: 2.5, Y: 2.5, Z: 0.6}
+		} else if prevX < endRoom.X {
+			// Enters Goal Room from Left/West wall
+			doorPos = Vector3{X: float64(endRoom.X) - 0.5, Y: 1.0, Z: float64(prevZ) + 0.5}
+			doorSize = Vector3{X: 0.6, Y: 2.5, Z: 2.5}
+		} else {
+			// Enters Goal Room from Right/East wall
+			doorPos = Vector3{X: float64(endRoom.X+endRoom.W) + 0.5, Y: 1.0, Z: float64(prevZ) + 0.5}
+			doorSize = Vector3{X: 0.6, Y: 2.5, Z: 2.5}
+		}
+
+		doors = append(doors, Door{
+			ID:       "goal_door",
+			IsLocked: true,
+			Position: doorPos,
+			Size:     doorSize,
+		})
 		
 		// Spawn Starter Heal Staff 3 units in front of player
+		// Spawn Starter Heal Staff (Two-Handed Ranged)
 		items = append(items, Item{
 			ID:              "starter_staff",
 			Type:            "ranged",
+			HandType:        HandTwoHanded,
 			Name:            "Heal Staff",
 			Position:        Vector3{X: spawnPoint.X - 1.5, Y: 0.5, Z: spawnPoint.Z + 3.0},
 			Damage:          5,
 			Heal:            5,
-			Range:           7.0, // Range 7
-			ProjectileSpeed: 6.0, // Slow magic bolt speed
+			Range:           7.0,
+			ProjectileSpeed: 6.0,
 			SkillName:       "Sanctuary",
 			SkillType:       "aoe_heal",
 			SkillMPCost:     30.0,
-			SkillCooldown:   150, // 5 seconds (150 ticks)
+			SkillCooldown:   150,
 		})
 		
-		// Spawn Starter Greatsword (Long Melee)
+		// Spawn Starter Greatsword (Two-Handed Long Melee)
 		items = append(items, Item{
 			ID:            "starter_sword",
 			Type:          "melee",
+			HandType:      HandTwoHanded,
 			Name:          "Greatsword (Long)",
 			Position:      Vector3{X: spawnPoint.X + 1.5, Y: 0.5, Z: spawnPoint.Z + 3.0},
 			Damage:        40,
@@ -168,16 +218,75 @@ func GenerateMap(seed int64, width, depth, numEnemies int) MapConfig {
 			MinSwingSpeed: 7.5,
 		})
 
-		// Spawn Starter Dagger (Short Melee)
+		// Spawn Starter Dagger (Right-Hand Short Melee)
 		items = append(items, Item{
 			ID:            "starter_dagger",
 			Type:          "melee",
+			HandType:      HandRight,
 			Name:          "Dagger (Short)",
 			Position:      Vector3{X: spawnPoint.X, Y: 0.5, Z: spawnPoint.Z + 3.0},
 			Damage:        20,
 			Length:        1.2,
 			MinSwingSpeed: 5.0,
 		})
+
+		// Spawn Starter Torch (Left-Hand Light Source)
+		items = append(items, Item{
+			ID:             "starter_torch",
+			Type:           "torch",
+			HandType:       HandLeft,
+			Name:           "Wooden Torch",
+			Position:       Vector3{X: spawnPoint.X, Y: 0.5, Z: spawnPoint.Z + 1.5},
+			LightRadius:    14.0,
+			LightColor:     "#ff9933",
+			LightIntensity: 5.0,
+		})
+
+		// Procedurally spawn Torches and Lanterns in random rooms
+		for i := 1; i < len(rooms); i++ {
+			room := rooms[i]
+			rx := room.X + r.Intn(room.W)
+			rz := room.Z + r.Intn(room.D)
+
+			if (i % 2) == 0 {
+				items = append(items, Item{
+					ID:             fmt.Sprintf("torch_room_%d", i),
+					Type:           "torch",
+					HandType:       HandLeft,
+					Name:           "Dungeon Torch",
+					Position:       Vector3{X: float64(rx) + 0.5, Y: 0.5, Z: float64(rz) + 0.5},
+					LightRadius:    14.0,
+					LightColor:     "#ff9933",
+					LightIntensity: 5.0,
+				})
+			} else if (i % 3) == 0 {
+				items = append(items, Item{
+					ID:             fmt.Sprintf("lantern_room_%d", i),
+					Type:           "lantern",
+					HandType:       HandLeft,
+					Name:           "Brass Lantern",
+					Position:       Vector3{X: float64(rx) + 0.5, Y: 0.5, Z: float64(rz) + 0.5},
+					LightRadius:    22.0,
+					LightColor:     "#ffcc44",
+					LightIntensity: 6.0,
+				})
+			}
+		}
+
+		// Procedurally spawn Dungeon Key in a room far from spawn (middle room)
+		if len(rooms) > 1 {
+			keyRoomIdx := len(rooms) / 2
+			keyRoom := rooms[keyRoomIdx]
+			kx := keyRoom.X + keyRoom.W/2
+			kz := keyRoom.Z + keyRoom.D/2
+			items = append(items, Item{
+				ID:       "dungeon_key",
+				Type:     "key",
+				HandType: HandAny,
+				Name:     "Dungeon Key",
+				Position: Vector3{X: float64(kx) + 0.5, Y: 0.5, Z: float64(kz) + 0.5},
+			})
+		}
 	}
 
 	// Spawn Enemies
@@ -210,6 +319,7 @@ func GenerateMap(seed int64, width, depth, numEnemies int) MapConfig {
 		ExitPoint:  exitPoint,
 		Spawners:   []Spawner{},
 		Walls:      walls,
+		Doors:      doors,
 		Enemies:    enemies,
 		Items:      items,
 	}

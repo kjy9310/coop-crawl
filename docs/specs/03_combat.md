@@ -13,7 +13,10 @@ Defines how characters fight, calculate damage, and die.
   - Dead players stay in the world (as corpses) but have their `Velocity` and `TargetPos` immediately zeroed. They can no longer move or attack.
   - Dead enemies are immediately removed from the `WorldState`.
 
-- **Mana (MP) Resource & Regeneration**:
+- **Core-Authoritative Projectile System**:
+  - All projectile creation, movement, collision checks (wall AABB & entity radius), lifetime/range expiration, and damage/healing calculations are 100% managed by the Go Wasm Core Engine (`simulator.go`).
+  - `Projectile` struct includes `Type string` (`"heal"`, `"magic"`, `"arrow"`) driven by the core engine.
+  - Client rendering is strictly position-bound to core `WorldState.projectiles` with no client-side physics integration, eliminating speed desynchronization and visual glitches across different weapon/skill types.
   - All players possess `MP` (100) and `MaxMP` (100).
   - MP naturally regenerates at +2 MP per second (+0.067 MP per tick).
   - Displayed visually as a cyan/blue MP Bar below the HP Bar.

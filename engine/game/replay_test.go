@@ -6,6 +6,7 @@ import (
 
 func TestReplay_GoalDetection(t *testing.T) {
 	state := NewWorldState()
+	state.IsGoalLocked = false
 	state.GoalPoint = Vector3{X: 18, Y: 0, Z: 18}
 
 	// Player at 22, 0, 22 (distance = 5.65 > 2.5, not at goal yet)
@@ -33,6 +34,7 @@ func TestReplay_GoalDetection(t *testing.T) {
 
 func TestReplay_AllPlayersGoalRequirement(t *testing.T) {
 	state := NewWorldState()
+	state.IsGoalLocked = false
 	state.GoalPoint = Vector3{X: 18, Y: 0, Z: 18}
 
 	state.Players["p1"] = PlayerState{ID: "p1", Name: "Hero", Position: Vector3{X: 18, Y: 0, Z: 18}, HP: 100}
